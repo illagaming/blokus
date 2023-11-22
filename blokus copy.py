@@ -191,8 +191,8 @@ class BlukusGame:
 
         print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
         print(f"Premire tour : {self.is_first_turn()}")
-        print(f"Adjacent : {self.is_adjacent_to_same_color(piece,x,y)}")
-        print(f"Diagonale : {self.check_diagonal_adjacency(x,y)}")
+        print(f"Diagonale : {self.is_adjacent_to_same_color(piece,x,y)}")
+        print(f"Latéral : {self.can_place_without_side_contact(piece,x,y)}")
 
         try:
             # Parcourir la pièce et ajouter la pièce à la copie du tableau à afficher.
@@ -233,7 +233,7 @@ class BlukusGame:
                         return False
             return True
 
-        if self.is_adjacent_to_same_color(piece, x, y) and not self.is_first_turn():
+        if self.is_adjacent_to_same_color(piece, x, y) and not self.is_first_turn() and self.can_place_without_side_contact(piece,x,y):
             for i in range(len(piece)):
                 for j in range(len(piece[i])):
                     if piece[i][j] == "#" and self.board[i + x][j + y] != ' ':
@@ -284,23 +284,33 @@ class BlukusGame:
         return False
 
     def is_adjacent_to_same_color(self, piece, x, y):
-        """Vérifie si chaque coin de la pièce est correctement adjacente par les coins à une pièce de même couleur."""
+        """Vérifie si au moins un coin de la pièce est correctement adjacent par les coins à une pièce de même couleur."""
+        directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]  # Diagonales
         for i in range(len(piece)):
             for j in range(len(piece[i])):
                 if piece[i][j] == "#":
-                    if not self.check_diagonal_adjacency(x + i, y + j):
-                        return False
-        return True
+                    # Vérifie l'adjacence pour chaque coin de la pièce
+                    for dx, dy in directions:
+                        nx, ny = x + i + dx, y + j + dy
+                        if 0 <= nx < len(self.board) and 0 <= ny < len(self.board[0]):
+                            if self.board[nx][ny].startswith(self.player_colors[self.current_player]):
+                                return True  # Adjacence valide trouvée
+        return False  # Aucune adjacence valide trouvée
 
-    def check_diagonal_adjacency(self, x, y):
-        """Vérifie si la case (x, y) est adjacente par les coins à une pièce de la même couleur."""
-        directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]  # Diagonales
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < len(self.board) and 0 <= ny < len(self.board[0]):
-                if self.board[nx][ny].startswith(self.player_colors[self.current_player]):
-                    return True
-        return False
+    def can_place_without_side_contact(self, piece, x, y):
+        """Vérifie si la pièce peut être placée sans toucher les côtés d'une pièce de la même couleur."""
+        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]  # Haut, Bas, Gauche, Droite
+        for i in range(len(piece)):
+            for j in range(len(piece[i])):
+                if piece[i][j] == "#":
+                    # Vérifie le contact latéral pour chaque segment de la pièce
+                    for dx, dy in directions:
+                        nx, ny = x + i + dx, y + j + dy
+                        if 0 <= nx < len(self.board) and 0 <= ny < len(self.board[0]):
+                            if self.board[nx][ny].startswith(self.player_colors[self.current_player]):
+                                return False  # Contact latéral non autorisé trouvé
+        return True  # Aucun contact latéral non autorisé
+
        
     ### Principal code du jeu
 
