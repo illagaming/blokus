@@ -5,6 +5,7 @@ class BlukusGame:
     def __init__(self):
         self.board = self.crea_tab()
         self.current_player = 1
+        self.turn_count = 1
         self.players = {1: [], 2: [], 3: [], 4: []}  # Chaque joueur a une liste de pièces utilisées.
         self.available_pieces = {
             "I1": [
@@ -189,10 +190,13 @@ class BlukusGame:
         color_code = self.player_colors[self.current_player]
         piece_char = color_code + '#\033[0m'
 
+        # Débug placement pièces
+
         print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
         print(f"Premire tour : {self.is_first_turn()}")
         print(f"Diagonale : {self.is_adjacent_to_same_color(piece,x,y)}")
         print(f"Latéral : {self.can_place_without_side_contact(piece,x,y)}")
+        print(f"Tour actuel : {self.turn_count}")
 
         try:
             # Parcourir la pièce et ajouter la pièce à la copie du tableau à afficher.
@@ -331,12 +335,6 @@ class BlukusGame:
         """
         os.system("cls" if os.name == 'nt' else 'clear')
 
-        # Création du plateau de jeu, sélection des pièces, etc.
-        self.tab = self.crea_tab()  # Supposons que vous avez une méthode crea_tab pour initialiser le tableau
-        self.current_piece_key = self.choose_piece()  # Méthode pour choisir la première pièce
-        self.rotation_idx = 0  # Index de la rotation actuelle pour la pièce choisie
-        self.x, self.y = 1, 1  # Positions initiales sur le plateau
-
         # Déterminer le nombre de joueurs
         print(f"Nombre de joueurs par défaut : {self.number_of_players}")
         change = input("Voulez-vous changer le nombre de joueurs ? (y/n): ").lower()
@@ -351,6 +349,12 @@ class BlukusGame:
                         print("S'il vous plaît, entrez un nombre valide de joueurs (2-4).")
                 except ValueError:
                     print("Entrée invalide. Veuillez entrer un nombre.")
+
+        # Création du plateau de jeu, sélection des pièces, etc.
+        self.tab = self.crea_tab()  # Supposons que vous avez une méthode crea_tab pour initialiser le tableau
+        self.current_piece_key = self.choose_piece()  # Méthode pour choisir la première pièce
+        self.rotation_idx = 0  # Index de la rotation actuelle pour la pièce choisie
+        self.x, self.y = 1, 1  # Positions initiales sur le plateau
     
     def main(self):
         """
@@ -387,8 +391,13 @@ class BlukusGame:
                 if self.can_place_piece(current_piece, current_x, current_y):
                     self.place_piece(current_piece, current_x, current_y)  # Placer la pièce
 
-                    # Passer au joueur suivant (à ajuster selon votre logique de jeu)
+                    # Passer au joueur suivant
                     self.current_player = (self.current_player % self.number_of_players) + 1
+
+                    # Si tous les joueurs ont joué, incrémenter le compteur de tours
+                    if self.current_player == 1:
+                        self.turn_count += 1
+                        print(f"Fin du tour {self.turn_count}.")
 
                     # Choisir la prochaine pièce pour le nouveau joueur actuel
                     self.current_piece_key = self.choose_piece()
@@ -400,6 +409,7 @@ class BlukusGame:
                 # Traitement des autres actions (déplacement, rotation)
                 self.x, self.y, self.rotation_idx = self.modify_board(
                     self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+
 
     def run(self):
         """
