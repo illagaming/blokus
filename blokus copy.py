@@ -111,9 +111,9 @@ class BlukusGame:
         #     # Pour Linux, utilisez la bibliothèque readchar ou une autre solution
         #     import readchar  # Vous devez peut-être installer cette bibliothèque
         #     return readchar.readkey()
-        if sys.platform.startswith('win'):
-            import msvcrt
-            return msvcrt.getch().decode('utf-8', errors="ignore")
+        # elif sys.platform.startswith('win'):
+        import msvcrt
+        return msvcrt.getch().decode('utf-8', errors="ignore")
 
     def rotate(self, piece):
         """Fait pivoter la pièce de 90 degrés"""
@@ -143,7 +143,6 @@ class BlukusGame:
                 if piece in available_pieces:
                     del available_pieces[piece]  # Supprime la pièce utilisée des pièces disponibles
             self.players[player] = available_pieces  # Met à jour les pièces disponibles pour le joueur
-
 
     def choose_piece(self):
         """
@@ -190,6 +189,11 @@ class BlukusGame:
         color_code = self.player_colors[self.current_player]
         piece_char = color_code + '#\033[0m'
 
+        print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
+        print(f"Premire tour : {self.is_first_turn()}")
+        print(f"Adjacent : {self.is_adjacent_to_same_color(piece,x,y)}")
+        print(f"Diagonale : {self.check_diagonal_adjacency(x,y)}")
+
         try:
             # Parcourir la pièce et ajouter la pièce à la copie du tableau à afficher.
             for i in range(len(piece)):
@@ -221,11 +225,20 @@ class BlukusGame:
 
     
     def can_place_piece(self, piece, x, y):
-        for i in range(len(piece)):
-            for j in range(len(piece[i])):
-                if piece[i][j] == "#" and self.board[i + x][j + y] != ' ':
-                    return False
-        return True
+        """"Vérifie si l'on peut placer la pièce sur le plateau"""
+        if self.is_corner(piece, x, y) and self.is_first_turn() == True:
+            for i in range(len(piece)):
+                for j in range(len(piece[i])):
+                    if piece[i][j] == "#" and self.board[i + x][j + y] != ' ':
+                        return False
+            return True
+
+        if self.is_adjacent_to_same_color(piece, x, y) and not self.is_first_turn():
+            for i in range(len(piece)):
+                for j in range(len(piece[i])):
+                    if piece[i][j] == "#" and self.board[i + x][j + y] != ' ':
+                        return False
+            return True       
 
     def can_move_to(self, piece, x, y):
         for i in range(len(piece)):
@@ -252,8 +265,43 @@ class BlukusGame:
                 rotation_idx = new_rotation_idx
 
         return x, y, rotation_idx
-   
-    
+
+    def is_first_turn(self):
+        """Vérifie si c'est le premier tour du joueur."""
+        return len(self.players[self.current_player]) == 1
+
+    def is_corner(self, piece, x, y):
+        """"Vérifie si la première pièce placée par chaque joueur est dans un coin"""
+        corners = [(1, 1), (1, 20), (20, 1), (20, 20)]
+        for i in range(len(piece)):
+            for j in range(len(piece[i])):
+                if piece[i][j] == "#":
+                    piece_x, piece_y = x + i, y + j
+                    if (piece_x, piece_y) in corners:
+                        print("Coin trouvé!")  # Confirmation de la détection du coin
+                        return True
+        print("Aucun coin détecté pour cette pièce.")  # Indique qu'aucun coin n'a été détecté
+        return False
+
+    def is_adjacent_to_same_color(self, piece, x, y):
+        """Vérifie si chaque coin de la pièce est correctement adjacente par les coins à une pièce de même couleur."""
+        for i in range(len(piece)):
+            for j in range(len(piece[i])):
+                if piece[i][j] == "#":
+                    if not self.check_diagonal_adjacency(x + i, y + j):
+                        return False
+        return True
+
+    def check_diagonal_adjacency(self, x, y):
+        """Vérifie si la case (x, y) est adjacente par les coins à une pièce de la même couleur."""
+        directions = [(1, 1), (1, -1), (-1, 1), (-1, -1)]  # Diagonales
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < len(self.board) and 0 <= ny < len(self.board[0]):
+                if self.board[nx][ny].startswith(self.player_colors[self.current_player]):
+                    return True
+        return False
+       
     ### Principal code du jeu
 
     def show_menu(self):
