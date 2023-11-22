@@ -107,11 +107,11 @@ class BlukusGame:
 
     def get_key(self):
         """Récupère la touche pressée par l'utilisateur"""
-        if sys.platform.startswith('linux'):
-            # Pour Linux, utilisez la bibliothèque readchar ou une autre solution
-            import readchar  # Vous devez peut-être installer cette bibliothèque
-            return readchar.readkey()
-        elif sys.platform.startswith('win'):
+        # if sys.platform.startswith('linux'):
+        #     # Pour Linux, utilisez la bibliothèque readchar ou une autre solution
+        #     import readchar  # Vous devez peut-être installer cette bibliothèque
+        #     return readchar.readkey()
+        if sys.platform.startswith('win'):
             import msvcrt
             return msvcrt.getch().decode('utf-8', errors="ignore")
 
@@ -320,7 +320,7 @@ class BlukusGame:
                 break
 
             # Traitement de l'action de placement de la pièce
-            if key_pressed in ('\r', '\n', readchar.key.ENTER):
+            if key_pressed in ('\r', '\n'):
                 current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
                 current_x = self.x
                 current_y = self.y
@@ -365,5 +365,3 @@ class BlukusGame:
 if __name__ == "__main__":
     game = BlukusGame()
     game.main()
-
-# Contraintes pour poser les pièces 

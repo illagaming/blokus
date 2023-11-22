@@ -355,10 +355,7 @@ def main():
     ### Boucle principale du jeu
     while True:
         print(f"Joueur {current_player}: Utilisez z, q, s, d pour déplacer le #. Appuyez sur 'a' pour tourner à gauche et 'e' pour tourner à droite. Appuyez sur 'ENTRER' pour placer la pièce. Appuyez sur 'k' pour quitter.")
-        try:
-            key_pressed = get_key()
-        except:
-            print("")
+        key_pressed = get_key()
         
         if key_pressed == 'k': 
             os.system("cls")
