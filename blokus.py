@@ -437,6 +437,7 @@ class BlukusGame:
                 # Lancer le jeu
                 self.main()
             elif user_choice == 2:
+                # Lancer le jeu en mode debug
                 print("Mode debug")
                 self.debug = True
                 self.main()
