@@ -8,10 +8,7 @@ if sys.platform.startswith('linux'):
     except ImportError:
         raise ImportError("Vous devez installer la bibliothèque readchar pour les systèmes Linux.")
 elif sys.platform.startswith('win'):
-    try:
-        import msvcrt
-    except ImportError:
-        raise ImportError("Veuillez installer la bibliothèque msvcrt pour les systèmes Windows")
+    import msvcrt
 else:
     raise OSError("Ce script ne supporte que Windows et Linux.")
 
@@ -148,7 +145,6 @@ class BlukusGame:
         for key, piece in self.available_pieces.items():
             blokus_pieces[key] = self.generate_rotations(piece)
         return blokus_pieces
-
     
     def limit_pieces(self):
         """Limite le nombre de pièces par utilisateur."""
