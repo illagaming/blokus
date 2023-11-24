@@ -1,6 +1,20 @@
 import os
 import sys
 
+# Importez la bibliothèque appropriée en fonction du système d'exploitation
+if sys.platform.startswith('linux'):
+    try:
+        import readchar
+    except ImportError:
+        raise ImportError("Vous devez installer la bibliothèque readchar pour les systèmes Linux.")
+elif sys.platform.startswith('win'):
+    try:
+        import msvcrt
+    except ImportError:
+        raise ImportError("Veuillez installer la bibliothèque msvcrt pour les systèmes Windows")
+else:
+    raise OSError("Ce script ne supporte que Windows et Linux.")
+
 class BlukusGame:
     def __init__(self):
         self.board = self.crea_tab()
@@ -105,16 +119,16 @@ class BlukusGame:
         self.rotation_idx = 0
         self.x, self.y = 1, 1
         self.number_of_players = 2 # Par défaut
+        self.debug = False
 
     def get_key(self):
         """Récupère la touche pressée par l'utilisateur"""
-        # if sys.platform.startswith('linux'):
-        #     # Pour Linux, utilisez la bibliothèque readchar ou une autre solution
-        #     import readchar  # Vous devez peut-être installer cette bibliothèque
-        #     return readchar.readkey()
-        # elif sys.platform.startswith('win'):
-        import msvcrt
-        return msvcrt.getch().decode('utf-8', errors="ignore")
+        if sys.platform.startswith('linux'):
+            # Utilisez readchar pour les systèmes Linux
+            return readchar.readkey()
+        elif sys.platform.startswith('win'):
+            # Utilisez msvcrt pour les systèmes Windows
+            return msvcrt.getch().decode('utf-8', errors="ignore")
 
     def rotate(self, piece):
         """Fait pivoter la pièce de 90 degrés"""
@@ -191,12 +205,12 @@ class BlukusGame:
         piece_char = color_code + '#\033[0m'
 
         # Débug placement pièces
-
-        print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
-        print(f"Premire tour : {self.is_first_turn()}")
-        print(f"Diagonale : {self.is_adjacent_to_same_color(piece,x,y)}")
-        print(f"Latéral : {self.can_place_without_side_contact(piece,x,y)}")
-        print(f"Tour actuel : {self.turn_count}")
+        if self.debug == True :
+            print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
+            print(f"Premire tour : {self.is_first_turn()}")
+            print(f"Diagonale : {self.is_adjacent_to_same_color(piece,x,y)}")
+            print(f"Latéral : {self.can_place_without_side_contact(piece,x,y)}")
+            print(f"Tour actuel : {self.turn_count}")
 
         try:
             # Parcourir la pièce et ajouter la pièce à la copie du tableau à afficher.
@@ -282,9 +296,7 @@ class BlukusGame:
                 if piece[i][j] == "#":
                     piece_x, piece_y = x + i, y + j
                     if (piece_x, piece_y) in corners:
-                        print("Coin trouvé!")  # Confirmation de la détection du coin
                         return True
-        print("Aucun coin détecté pour cette pièce.")  # Indique qu'aucun coin n'a été détecté
         return False
 
     def is_adjacent_to_same_color(self, piece, x, y):
@@ -319,15 +331,40 @@ class BlukusGame:
     ### Principal code du jeu
 
     def show_menu(self):
+        """"Affiche le menu du joueur"""
         os.system('cls' if os.name == 'nt' else 'clear')
         print("********** Menu **********")
         print("1. Commencer à jouer")
-        print("2. Quitter")
+        print("2. Lancer en mode Debug")
+        print("3. Quitter")
         try:
             return int(input("Entrez votre choix : "))
         except ValueError:
             return 0  # Retourner une valeur non valide en cas d'erreur
     
+    def set_number_of_players(self):
+        """"Permet de choisir le nombre de joueurs de l'application"""
+        print(f"Nombre de joueurs par défaut : {self.number_of_players}")
+
+        while True:
+            change = input("Voulez-vous changer le nombre de joueurs ? (y/n): ").strip().lower()
+            if change == 'y':
+                while True:
+                    try:
+                        number = int(input("Entrez le nombre de joueurs (2-4): ").strip())
+                        if 2 <= number <= 4:
+                            self.number_of_players = number
+                            return  # Sortie de la fonction après une saisie valide
+                        else:
+                            print("S'il vous plaît, entrez un nombre valide de joueurs (2-4).")
+                    except ValueError:
+                        print("Entrée invalide. Veuillez entrer un nombre.")
+            elif change == 'n':
+                return  # Sortie de la fonction si l'utilisateur ne souhaite pas changer le nombre de joueurs
+            else:
+                print("Réponse non valide. Veuillez répondre par 'y' (oui) ou 'n' (non).")
+
+
     def initialize_game(self):
         """
         Initialisation du jeu. Cette méthode prépare le plateau de jeu, sélectionne les pièces,
@@ -335,20 +372,7 @@ class BlukusGame:
         """
         os.system("cls" if os.name == 'nt' else 'clear')
 
-        # Déterminer le nombre de joueurs
-        print(f"Nombre de joueurs par défaut : {self.number_of_players}")
-        change = input("Voulez-vous changer le nombre de joueurs ? (y/n): ").lower()
-        if change == 'y':
-            while True:
-                try:
-                    number = int(input("Entrez le nombre de joueurs (2-4): "))
-                    if 2 <= number <= 4:
-                        self.number_of_players = number
-                        break
-                    else:
-                        print("S'il vous plaît, entrez un nombre valide de joueurs (2-4).")
-                except ValueError:
-                    print("Entrée invalide. Veuillez entrer un nombre.")
+        self.set_number_of_players()      
 
         # Création du plateau de jeu, sélection des pièces, etc.
         self.tab = self.crea_tab()  # Supposons que vous avez une méthode crea_tab pour initialiser le tableau
@@ -361,11 +385,7 @@ class BlukusGame:
         Méthode pour démarrer le jeu. Elle gère la boucle principale du jeu,
         les actions des joueurs, et les mises à jour du plateau.
         """
-        # Afficher le menu et obtenir le choix de l'utilisateur
-        choice = self.show_menu()
-        if choice == 2:
-            return  # Quitter si l'utilisateur choisit cette option
-
+        # Lancer le jeu
         self.initialize_game()
 
         # Boucle principale du jeu
@@ -421,6 +441,10 @@ class BlukusGame:
                 # Lancer le jeu
                 self.main()
             elif user_choice == 2:
+                print("Mode debug")
+                self.debug = True
+                self.main()
+            elif user_choice == 3:
                 print("Au revoir!")
                 break
             else:
@@ -432,4 +456,4 @@ class BlukusGame:
 # Pour démarrer le jeu, vous créez une instance de votre jeu et appelez 'run'.
 if __name__ == "__main__":
     game = BlukusGame()
-    game.main()
+    game.run()
