@@ -370,46 +370,55 @@ class BlukusGame:
         self.current_player = 1
         player_number = 2
 
+        # Affichage du message d'attente
+        expected_clients = self.number_of_players - 1  # Nombre de joueurs attendus moins l'hôte
+        print(f"En attente de {expected_clients} joueurs...")
+
         async def connection_handler(websocket, path):
             nonlocal player_number
             self.clients.add(websocket)
+            print(f"Joueur {player_number} connecté.")
             await websocket.send(json.dumps({'action': 'assign_number', 'number': player_number}))
             player_number += 1
+
+            if len(self.clients) == expected_clients:
+                print("Tous les joueurs sont connectés. Le jeu peut commencer.")
 
             try:
                 async for message in websocket:
                     data = json.loads(message)
                     # Traiter les actions des clients
-                    # Mettre à jour le plateau en conséquence et envoyer la mise à jour
                     update = json.dumps({'action': 'update', 'board': self.board, 'current_player': self.current_player})
                     await asyncio.gather(*(client.send(update) for client in self.clients))
             finally:
                 self.clients.remove(websocket)
+                print(f"Joueur {player_number} déconnecté.")
 
-        async with websockets.serve(connection_handler, ip, port):
-            await asyncio.Future()  # Exécuter indéfiniment
+        try:
+            async with websockets.serve(connection_handler, ip, port):
+                await asyncio.Future()  # Exécuter indéfiniment
+        except:
+            print("Erreur: Port Indisponible ou Adresse IP incorrecte.")
 
     # Client
     async def connect_to_game(self, ip, port):
         self.is_host = False
         uri = f"ws://{ip}:{port}"
-        async with websockets.connect(uri) as websocket:
-            self.websocket = websocket
-            async for message in websocket:
-                data = json.loads(message)
-                if data['action'] == 'update':
-                    self.board = data['board']
-                    self.current_player = data['current_player']
-                    self.display_board()
-                elif data['action'] == 'assign_number':
-                    self.my_player_number = data['number']
-
-    # Client to Server
-    async def send_action_to_server(self, action_type, key=None):
-        action = {'action': action_type, 'key': key}
-        message = json.dumps(action)
-        await self.websocket.send(message)
-
+        try:
+            async with websockets.connect(uri) as websocket:
+                self.websocket = websocket
+                print("Connecté au serveur. En attente des autres joueurs...")
+                async for message in websocket:
+                    data = json.loads(message)
+                    if data['action'] == 'update':
+                        self.board = data['board']
+                        self.current_player = data['current_player']
+                        self.display_board()
+                    elif data['action'] == 'assign_number':
+                        self.my_player_number = data['number']
+                        print(f"Vous êtes le joueur {self.my_player_number}.")
+        except:
+            print("Erreur de connexion au serveur. Vérifiez l'adresse IP et le port.")
 
     ### Principal code du jeu
 
