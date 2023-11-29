@@ -499,6 +499,7 @@ class BlukusGame:
                 continue
 
             # Afficher le plateau de jeu
+            self.send_update_to_all_clients()
             self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
 
             if self.is_host or self.current_player == self.my_player_number:
