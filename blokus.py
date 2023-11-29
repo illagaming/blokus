@@ -122,6 +122,7 @@ class BlukusGame:
         self.scores = {1: 0, 2: 0, 3: 0, 4: 0}  # Initialise les scores pour chaque joueur
         self.is_host = False
         self.websocket = None
+        self.clients = set()
         self.debug = False
 
     def get_key(self):
