@@ -381,7 +381,7 @@ class BlukusGame:
             player_number += 1
 
             if len(self.clients) == self.number_of_players - 1:
-                print("Tous les joueurs sont connectés. Le jeu peut commencer.")
+                print("Tous les joueurs sont connectés. Le jeu peut commencer.")                
                 await self.main()  # Démarrer le jeu
 
             try:
@@ -411,13 +411,15 @@ class BlukusGame:
                 async for message in websocket:
                     data = json.loads(message)
                     if data['action'] == 'update':
+                        print('Update')
                         self.board = data['board']
                         self.current_player = data['current_player']
                         # Afficher le plateau de jeu
-                        self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
+                        self.display_board()
                         if self.current_player == self.my_player_number:
                             await self.main()  # Tour de ce client pour jouer
                     elif data['action'] == 'assign_number':
+                        print("assign_number")
                         self.my_player_number = data['number']
                         print(f"Vous êtes le joueur {self.my_player_number}.")
         except:
@@ -499,8 +501,8 @@ class BlukusGame:
                 continue
 
             # Afficher le plateau de jeu
-            self.send_update_to_all_clients()
             self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
+            self.send_update_to_all_clients()
 
             if self.is_host or self.current_player == self.my_player_number:
                 # Si c'est le tour du joueur
