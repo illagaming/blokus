@@ -383,6 +383,7 @@ class BlukusGame:
 
             if len(self.clients) == expected_clients:
                 print("Tous les joueurs sont connectés. Le jeu peut commencer.")
+                await self.main()  # Appel de la fonction main pour démarrer le jeu
 
             try:
                 async for message in websocket:
@@ -481,7 +482,7 @@ class BlukusGame:
 
         while not all_players_blocked:
             if not self.player_can_play(self.current_player):
-                print(f"Le joueur {self.current_player} est bloqué et passe son tour.")
+                print(f"Le joueur {self.current_player} est bloqué et passe son tour")
                 all_players_blocked = all(
                     not self.player_can_play(player) for player in range(1, self.number_of_players + 1)
                 )
@@ -537,9 +538,9 @@ class BlukusGame:
         while True:
             user_choice = self.show_menu()
             if user_choice == 1:
-                ip = input("Entrez l'adresse IP pour l'hôte : ")
-                port = input("Entrez le port : ")
-                asyncio.run(self.host_game(ip, port))
+                # ip = input("Entrez l'adresse IP pour l'hôte : ")
+                # port = input("Entrez le port : ")
+                asyncio.run(self.host_game("172.20.10.6", "4242"))
             elif user_choice == 2:
                 ip = input("Entrez l'adresse IP de l'hôte : ")
                 port = input("Entrez le port : ")
