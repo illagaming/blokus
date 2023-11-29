@@ -124,6 +124,7 @@ class BlukusGame:
         self.websocket = None
         self.clients = set()
         self.debug = True
+        self.start_Game = False
 
     def get_key(self):
         """Récupère la touche pressée par l'utilisateur"""
@@ -416,7 +417,8 @@ class BlukusGame:
             if len(self.clients) == self.number_of_players - 1:
                 print("Tous les joueurs sont connectés. Le jeu peut commencer.")
                 await self.main()  # Démarrer le jeu
-                
+                self.start_Game = True
+
             try:
                 async for message in websocket:
                     data = json.loads(message)
@@ -441,17 +443,19 @@ class BlukusGame:
             async with websockets.connect(uri) as websocket:
                 self.websocket = websocket
                 print("Connecté au serveur. En attente des autres joueurs...")
-                async for message in websocket:
-                    data = json.loads(message)
-                    if data['action'] == 'update':
-                        self.board = data['board']
-                        self.current_player = data['current_player']
-                        self.display_board()  # Assurez-vous que cette méthode affiche le plateau actuel
-                        if self.current_player == self.my_player_number:
-                            await self.main()  # Tour de ce client pour jouer
-                    elif data['action'] == 'assign_number':
-                        self.my_player_number = data['number']
-                        print(f"Vous êtes le joueur {self.my_player_number}.")
+                # Démarrage du jeu si tous les joueurs sont connectés
+                if self.start_Game == True:
+                    async for message in websocket:
+                        data = json.loads(message)
+                        if data['action'] == 'update':
+                            self.board = data['board']
+                            self.current_player = data['current_player']
+                            self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)  
+                            if self.current_player == self.my_player_number:
+                                await self.main()  
+                        elif data['action'] == 'assign_number':
+                            self.my_player_number = data['number']
+                            print(f"Vous êtes le joueur {self.my_player_number}.")
         except:
             print("Erreur de connexion au serveur. Vérifiez l'adresse IP et le port.")
 
