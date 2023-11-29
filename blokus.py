@@ -116,6 +116,7 @@ class BlukusGame:
         self.rotation_idx = 0
         self.x, self.y = 1, 1
         self.number_of_players = 2 # Par défaut
+        self.scores = {1: 0, 2: 0, 3: 0, 4: 0}  # Initialise les scores pour chaque joueur
         self.debug = False
 
     def get_key(self):
@@ -202,8 +203,9 @@ class BlukusGame:
 
         # Débug placement pièces
         if self.debug == True :
-            print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
-            print(f"Premire tour : {self.is_first_turn()}")
+            if self.turn_count == 1:
+                print(f"Est dans un coin : {self.is_corner(piece, x, y)}")
+                print(f"Premire tour : {self.is_first_turn()}")
             print(f"Diagonale : {self.is_adjacent_to_same_color(piece,x,y)}")
             print(f"Latéral : {self.can_place_without_side_contact(piece,x,y)}")
             print(f"Tour actuel : {self.turn_count}")
@@ -236,7 +238,6 @@ class BlukusGame:
 
         # Ajoutez la pièce à la liste des pièces utilisées pour ce joueur
         self.players[self.current_player].append(self.current_piece_key)
-
     
     def can_place_piece(self, piece, x, y):
         """"Vérifie si l'on peut placer la pièce sur le plateau"""
@@ -322,7 +323,38 @@ class BlukusGame:
                             if self.board[nx][ny].startswith(self.player_colors[self.current_player]):
                                 return False  # Contact latéral non autorisé trouvé
         return True  # Aucun contact latéral non autorisé
+    
+    def update_score(self):
+        """ Met à jour le score du joueur courant en fonction des pièces non placées. """
+        pieces_non_placees = set(self.available_pieces.keys()) - set(self.players[self.current_player])
+        squares_unplaced = sum(sum(len(row) for row in self.available_pieces[piece]) for piece in pieces_non_placees)
+        # Mettre à jour le score
+        if len(self.players[self.current_player]) == 21:
+            # Bonus pour avoir placé toutes les pièces
+            self.scores[self.current_player] += 20 if self.players[self.current_player][-1] == "I1" else 15
+        else:
+            # Pénalité pour les pièces non placées
+            self.scores[self.current_player] -= squares_unplaced
 
+    def player_can_play(self, player):
+        """ Vérifie si le joueur peut placer une pièce. """
+        # Récupérer les pièces encore disponibles pour le joueur donné
+        available_pieces = [p for p in self.available_pieces if p not in self.players[player]]
+
+        for piece_key in available_pieces:
+            piece = self.available_pieces[piece_key]
+            for rotation in self.generate_rotations(piece):
+                for x in range(1, 21):
+                    for y in range(1, 21):
+                        if self.can_place_piece(rotation, x, y):
+                            return True
+        return False
+    
+    def calculate_final_scores(self):
+        """ Calcule les scores finaux pour tous les joueurs. """
+        for player in range(1, self.number_of_players + 1):
+            self.current_player = player
+            self.update_score()
        
     ### Principal code du jeu
 
@@ -330,6 +362,8 @@ class BlukusGame:
         """"Affiche le menu du joueur"""
         os.system('cls' if os.name == 'nt' else 'clear')
         print("********** Menu **********")
+        # print("1. Local")
+        # print("2. En LAN")
         print("1. Commencer à jouer")
         print("2. Lancer en mode Debug")
         print("3. Quitter")
@@ -377,15 +411,30 @@ class BlukusGame:
         self.x, self.y = 1, 1  # Positions initiales sur le plateau
     
     def main(self):
-        """
-        Méthode pour démarrer le jeu. Elle gère la boucle principale du jeu,
-        les actions des joueurs, et les mises à jour du plateau.
-        """
-        # Lancer le jeu
+        # Initialisation du jeu
         self.initialize_game()
 
+        # Variable pour suivre si tous les joueurs sont bloqués
+        all_players_blocked = False
+
         # Boucle principale du jeu
-        while True:
+        while not all_players_blocked:
+            # Vérifier si le joueur courant peut jouer
+            if not self.player_can_play(self.current_player):
+                print(f"Le joueur {self.current_player} est bloqué et passe son tour.")
+
+                # Vérifier si tous les joueurs sont bloqués
+                all_players_blocked = all(
+                    not self.player_can_play(player) for player in range(1, self.number_of_players + 1)
+                )
+
+                if all_players_blocked:
+                    break
+
+                # Passer au joueur suivant
+                self.current_player = (self.current_player % self.number_of_players) + 1
+                continue
+
             # Afficher le plateau avec la pièce actuelle
             self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
             
@@ -407,13 +456,11 @@ class BlukusGame:
                 if self.can_place_piece(current_piece, current_x, current_y):
                     self.place_piece(current_piece, current_x, current_y)  # Placer la pièce
 
+                    # Mettre à jour le score
+                    self.update_score()
+
                     # Passer au joueur suivant
                     self.current_player = (self.current_player % self.number_of_players) + 1
-
-                    # Si tous les joueurs ont joué, incrémenter le compteur de tours
-                    if self.current_player == 1:
-                        self.turn_count += 1
-                        print(f"Fin du tour {self.turn_count}.")
 
                     # Choisir la prochaine pièce pour le nouveau joueur actuel
                     self.current_piece_key = self.choose_piece()
@@ -426,6 +473,11 @@ class BlukusGame:
                 self.x, self.y, self.rotation_idx = self.modify_board(
                     self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
 
+        # Fin du jeu, calculer les scores finaux
+        self.calculate_final_scores()
+        print("Scores finaux :")
+        for player, score in self.scores.items():
+            print(f"Joueur {player}: {score} points")
 
     def run(self):
         """
@@ -434,6 +486,7 @@ class BlukusGame:
         while True:
             user_choice = self.show_menu()
             if user_choice == 1:
+                
                 # Lancer le jeu
                 self.main()
             elif user_choice == 2:
