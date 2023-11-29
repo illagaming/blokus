@@ -558,11 +558,11 @@ class BlukusGame:
             if user_choice == 1:
                 # ip = input("Entrez l'adresse IP pour l'hôte : ")
                 # port = input("Entrez le port : ")
-                asyncio.run(self.host_game("172.20.10.6", "4242"))
+                asyncio.run(self.host_game("172.20.10.6", "4243"))
             elif user_choice == 2:
-                ip = input("Entrez l'adresse IP de l'hôte : ")
-                port = input("Entrez le port : ")
-                asyncio.run(self.connect_to_game("172.20.10.6", "4242"))
+                # ip = input("Entrez l'adresse IP de l'hôte : ")
+                # port = input("Entrez le port : ")
+                asyncio.run(self.connect_to_game("172.20.10.6", "4243"))
             elif user_choice == 3:
                 print("Au revoir!")
                 break
