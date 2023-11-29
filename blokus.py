@@ -464,6 +464,20 @@ class BlukusGame:
         except:
             print("Erreur de connexion au serveur. Vérifiez l'adresse IP et le port.")
 
+    async def attempt_to_place_piece(self):
+        current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
+        current_x = self.x
+        current_y = self.y
+
+        if self.can_place_piece(current_piece, current_x, current_y):
+            self.place_piece(current_piece, current_x, current_y)
+            self.update_score()
+            self.current_player = (self.current_player % self.number_of_players) + 1
+            self.current_piece_key = self.choose_piece()
+            self.rotation_idx = 0
+            self.x, self.y = 1, 1
+
+        await self.send_update_to_all_clients()
 
     ### Principal code du jeu
 
@@ -535,6 +549,8 @@ class BlukusGame:
                 await self.send_update_to_all_clients()
                 continue
 
+            await self.send_update_to_all_clients()
+
             if self.is_host or self.current_player == self.my_player_number:
                 print(f"Tour du joueur {self.current_player}.")
                 key_pressed = self.get_key()
@@ -545,6 +561,7 @@ class BlukusGame:
 
                 self.x, self.y, self.rotation_idx = self.modify_board(
                     self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+
                 await self.send_update_to_all_clients()
 
                 if key_pressed in ('\r', '\n'):
