@@ -1,5 +1,8 @@
 import os
 import sys
+import websockets
+import asyncio
+import json
 
 # Importez la bibliothèque appropriée en fonction du système d'exploitation
 if sys.platform.startswith('linux'):
@@ -117,6 +120,8 @@ class BlukusGame:
         self.x, self.y = 1, 1
         self.number_of_players = 2 # Par défaut
         self.scores = {1: 0, 2: 0, 3: 0, 4: 0}  # Initialise les scores pour chaque joueur
+        self.is_host = False
+        self.websocket = None
         self.debug = False
 
     def get_key(self):
@@ -355,17 +360,66 @@ class BlukusGame:
         for player in range(1, self.number_of_players + 1):
             self.current_player = player
             self.update_score()
-       
+
+    ### Méthodes WebSocket ###
+
+    # Host
+    async def host_game(self, ip, port):
+        self.is_host = True
+        self.current_player = 1
+        player_number = 2
+
+        async def connection_handler(websocket, path):
+            nonlocal player_number
+            self.clients.add(websocket)
+            await websocket.send(json.dumps({'action': 'assign_number', 'number': player_number}))
+            player_number += 1
+
+            try:
+                async for message in websocket:
+                    data = json.loads(message)
+                    # Traiter les actions des clients
+                    # Mettre à jour le plateau en conséquence et envoyer la mise à jour
+                    update = json.dumps({'action': 'update', 'board': self.board, 'current_player': self.current_player})
+                    await asyncio.gather(*(client.send(update) for client in self.clients))
+            finally:
+                self.clients.remove(websocket)
+
+        async with websockets.serve(connection_handler, ip, port):
+            await asyncio.Future()  # Exécuter indéfiniment
+
+    # Client
+    async def connect_to_game(self, ip, port):
+        self.is_host = False
+        uri = f"ws://{ip}:{port}"
+        async with websockets.connect(uri) as websocket:
+            self.websocket = websocket
+            async for message in websocket:
+                data = json.loads(message)
+                if data['action'] == 'update':
+                    self.board = data['board']
+                    self.current_player = data['current_player']
+                    self.display_board()
+                elif data['action'] == 'assign_number':
+                    self.my_player_number = data['number']
+
+    # Client to Server
+    async def send_action_to_server(self, action_type, key=None):
+        action = {'action': action_type, 'key': key}
+        message = json.dumps(action)
+        await self.websocket.send(message)
+
+
     ### Principal code du jeu
 
     def show_menu(self):
         """"Affiche le menu du joueur"""
         os.system('cls' if os.name == 'nt' else 'clear')
         print("********** Menu **********")
-        # print("1. Local")
-        # print("2. En LAN")
-        print("1. Commencer à jouer")
-        print("2. Lancer en mode Debug")
+        print("1. Héberger une partie")
+        print("2. Se connecter à une partie")
+        # print("1. Commencer à jouer")
+        # print("2. Lancer en mode Debug")
         print("3. Quitter")
         try:
             return int(input("Entrez votre choix : "))
@@ -410,20 +464,14 @@ class BlukusGame:
         self.rotation_idx = 0  # Index de la rotation actuelle pour la pièce choisie
         self.x, self.y = 1, 1  # Positions initiales sur le plateau
     
-    def main(self):
-        # Initialisation du jeu
+    async def main(self):
         self.initialize_game()
 
-        # Variable pour suivre si tous les joueurs sont bloqués
         all_players_blocked = False
 
-        # Boucle principale du jeu
         while not all_players_blocked:
-            # Vérifier si le joueur courant peut jouer
             if not self.player_can_play(self.current_player):
                 print(f"Le joueur {self.current_player} est bloqué et passe son tour.")
-
-                # Vérifier si tous les joueurs sont bloqués
                 all_players_blocked = all(
                     not self.player_can_play(player) for player in range(1, self.number_of_players + 1)
                 )
@@ -431,49 +479,42 @@ class BlukusGame:
                 if all_players_blocked:
                     break
 
-                # Passer au joueur suivant
                 self.current_player = (self.current_player % self.number_of_players) + 1
                 continue
 
-            # Afficher le plateau avec la pièce actuelle
             self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
-            
-            # Instructions pour le joueur actuel
-            print(f"Tour du joueur {self.current_player}. Utilisez z, q, s, d pour déplacer la pièce, 'a' pour la tourner à gauche, 'e' pour la tourner à droite, 'ENTRÉE' pour la placer. Appuyez sur 'k' pour quitter.")
-            key_pressed = self.get_key()  # Lecture de l'entrée du clavier
 
-            if key_pressed == 'k':  # Condition pour quitter le jeu
-                print("Fin du jeu...")
-                break
+            if self.is_host or self.current_player == self.my_player_number:
+                print(f"Tour du joueur {self.current_player}. Utilisez z, q, s, d pour déplacer la pièce, 'a' pour la tourner à gauche, 'e' pour la tourner à droite, 'ENTRÉE' pour la placer. Appuyez sur 'k' pour quitter.")
+                key_pressed = self.get_key()
 
-            # Traitement de l'action de placement de la pièce
-            if key_pressed in ('\r', '\n'):
-                current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
-                current_x = self.x
-                current_y = self.y
+                if key_pressed == 'k':
+                    print("Fin du jeu...")
+                    break
 
-                # Vérifier si la pièce peut être placée à cet endroit
-                if self.can_place_piece(current_piece, current_x, current_y):
-                    self.place_piece(current_piece, current_x, current_y)  # Placer la pièce
+                if key_pressed in ('\r', '\n'):
+                    current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
+                    current_x = self.x
+                    current_y = self.y
 
-                    # Mettre à jour le score
-                    self.update_score()
+                    if self.can_place_piece(current_piece, current_x, current_y):
+                        self.place_piece(current_piece, current_x, current_y)
+                        self.update_score()
+                        self.current_player = (self.current_player % self.number_of_players) + 1
+                        self.current_piece_key = self.choose_piece()
+                        self.rotation_idx = 0
+                        self.x, self.y = 1, 1
 
-                    # Passer au joueur suivant
-                    self.current_player = (self.current_player % self.number_of_players) + 1
-
-                    # Choisir la prochaine pièce pour le nouveau joueur actuel
-                    self.current_piece_key = self.choose_piece()
-                    self.rotation_idx = 0  # Réinitialiser la rotation pour la nouvelle pièce
-                    self.x, self.y = 1, 1  # Réinitialiser les positions
+                        if self.is_host:
+                            update = json.dumps({'action': 'update', 'board': self.board, 'current_player': self.current_player})
+                            await asyncio.gather(*(client.send(update) for client in self.clients))
                 else:
-                    print("Action impossible. Vous ne pouvez pas placer la pièce ici.")
+                    self.x, self.y, self.rotation_idx = self.modify_board(self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+                    if not self.is_host:
+                        await self.send_action_to_server('move', key_pressed)
             else:
-                # Traitement des autres actions (déplacement, rotation)
-                self.x, self.y, self.rotation_idx = self.modify_board(
-                    self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+                await asyncio.sleep(0.1)  # Petite pause pour éviter la surcharge CPU
 
-        # Fin du jeu, calculer les scores finaux
         self.calculate_final_scores()
         print("Scores finaux :")
         for player, score in self.scores.items():
@@ -486,14 +527,13 @@ class BlukusGame:
         while True:
             user_choice = self.show_menu()
             if user_choice == 1:
-                
-                # Lancer le jeu
-                self.main()
+                ip = input("Entrez l'adresse IP pour l'hôte : ")
+                port = input("Entrez le port : ")
+                asyncio.run(self.host_game(ip, port))
             elif user_choice == 2:
-                # Lancer le jeu en mode debug
-                print("Mode debug")
-                self.debug = True
-                self.main()
+                ip = input("Entrez l'adresse IP de l'hôte : ")
+                port = input("Entrez le port : ")
+                asyncio.run(self.connect_to_game(ip, port))
             elif user_choice == 3:
                 print("Au revoir!")
                 break
@@ -501,6 +541,28 @@ class BlukusGame:
                 print("Option invalide, veuillez réessayer.")
             
             input("Appuyez sur entrer pour continuer...")  # Pause avant de nettoyer l'écran
+
+    # def run(self):
+    #     """
+    #     Cette méthode gère le menu principal et les sélections d'options.
+    #     """
+    #     while True:
+    #         user_choice = self.show_menu()
+    #         if user_choice == 1:
+    #             # Lancer le jeu
+    #             self.main()
+    #         elif user_choice == 2:
+    #             # Lancer le jeu en mode debug
+    #             print("Mode debug")
+    #             self.debug = True
+    #             self.main()
+    #         elif user_choice == 3:
+    #             print("Au revoir!")
+    #             break
+    #         else:
+    #             print("Option invalide, veuillez réessayer.")
+            
+    #         input("Appuyez sur entrer pour continuer...")  # Pause avant de nettoyer l'écran
     
     
 # Pour démarrer le jeu, vous créez une instance de votre jeu et appelez 'run'.
