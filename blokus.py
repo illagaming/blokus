@@ -388,8 +388,7 @@ class BlukusGame:
             try:
                 async for message in websocket:
                     data = json.loads(message)
-                    if data['action'] == 'move':
-                        await self.process_client_move(data, player_number)
+                    
                         
             finally:
                 self.clients.remove(websocket)
@@ -501,44 +500,49 @@ class BlukusGame:
 
             #     self.current_player = (self.current_player % self.number_of_players) + 1
             
-            if self.is_host:
-                # Mettre à jour et envoyer l'état actuel du jeu à tous les clients
+            if self.is_host:  # Vérification si l'instance actuelle est celle de l'hôte
+                # Création d'une mise à jour de l'état du jeu à envoyer aux clients
                 update = json.dumps({'action': 'update', 'board': self.board, 'current_player':self.current_player,'blokus_pieces':self.blokus_pieces[self.current_piece_key][self.rotation_idx], 'x':self.x, 'y':self.y})
+                # Envoi de la mise à jour à tous les clients
                 await asyncio.gather(*(client.send(update) for client in self.clients))
+                # Affichage du plateau de jeu
                 self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y) 
-            # Afficher le plateau de jeu
-            if self.is_host:
-                # Si c'est le tour du joueur
-                print(f"Tour du joueur {self.current_player}.")
-                key_pressed = self.get_key()
-                if key_pressed == 'k':
+
+            # Cette vérification semble redondante car elle est identique à celle ci-dessus.
+            if self.current_player == self.player_number:
+                print(f"Tour du joueur {self.current_player}.")  # Affichage du tour du joueur actuel
+                key_pressed = self.get_key()  # Attente d'une entrée clavier
+                if key_pressed == 'k':  # Si 'k' est pressé, fin du jeu
                     print("Fin du jeu...")
                     break
 
+                # Modification du plateau en fonction de la touche pressée
                 self.x, self.y, self.rotation_idx = self.modify_board(
                     self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+                # Affichage du plateau avec la pièce déplacée
                 self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
 
-                if key_pressed in ('\r', '\n'):
+                if key_pressed in ('\r', '\n'):  # Si Entrée est pressée
                     current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
                     current_x = self.x
                     current_y = self.y
 
-                    if self.can_place_piece(current_piece, current_x, current_y):
-                        self.place_piece(current_piece, current_x, current_y)
-                        self.update_score()
+                    if self.can_place_piece(current_piece, current_x, current_y):  # Vérification si la pièce peut être placée
+                        self.place_piece(current_piece, current_x, current_y)  # Placement de la pièce
+                        self.update_score()  # Mise à jour du score
+                        # Envoi de l'information de placement de la pièce aux clients
                         update = json.dumps({'action': 'save', 'current_piece': current_piece, 'current_x':current_x,'current_y':current_y,'player':1,"piece":self.current_piece_key})
                         await asyncio.gather(*(client.send(update) for client in self.clients))
-                        # Passer au joueur suivant
+                        # Passage au joueur suivant
                         self.current_player = (self.current_player % self.number_of_players) + 1
                         self.rotation_idx = 0
                         self.x, self.y = 1, 1
-                        print(self.is_host)
+
+                        # Changement du rôle de l'hôte en fonction du joueur actuel
                         if(self.current_player==2):
                             self.is_host=False
-                            print(self.is_host)
-            else:
-                #Il faut afficher le tableau
+
+            else:  # Si ce n'est pas le tour de l'hôte
                 print("En attente du tour des autres joueurs...")
                 await asyncio.sleep(0.1)  # Petite pause pour éviter la surcharge CPU
 
@@ -553,7 +557,7 @@ class BlukusGame:
         Cette méthode gère le menu principal et les sélections d'options.
         """
         while True:
-            user_choice = self.show_menu()
+            user_choice = self.show_menu()            
             if user_choice == 1:
                 # ip = input("Entrez l'adresse IP pour l'hôte : ")
                 # port = input("Entrez le port : ")
