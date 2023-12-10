@@ -1,109 +1,88 @@
-import asyncio
-import json
-
-async def handle_client(reader, writer):
-    data = await reader.read(100)
-    message = json.loads(data.decode())
-    
-    # Gérer les différentes actions du jeu ici, telles que la mise à jour du jeu, etc.
-    # Pour cet exemple, nous renvoyons simplement le message au client.
-    
-    print(f"Received {message} from client")
-    print("Sending back to client")
-    
-    new_message = json.dumps({"response": "Received your message!"})
-    writer.write(new_message.encode())
-    await writer.drain()
-
-    writer.close()
-
-async def main():
-    server = await asyncio.start_server(
-        handle_client, '127.0.0.1', 8888)
-
-    addr = server.sockets[0].getsockname()
-    print(f'Serving on {addr}')
-
-    async with server:
-        await server.serve_forever()
-
-asyncio.run(main())
-
-
-
-# # Serveur
-# # --------
-
-# import asyncio 
+# import asyncio
+# import websockets
 # import json
+# import random
 
-# grille_tetris = [[0] * 10 for _ in range(20)]
+# async def connection_handler(websocket, path):
+#     global clients, player_count, required_players, start_game_sent, player_number, starting_player
 
-# def placerPiece(posX,posY,pieces,grille):
-#     bloc_L = [
-#     [1, 0, 0],
-#     [1, 1, 1]
-#     ]
-#     x, y = posX, posY
-#     for i in range(len(bloc_L)):
-#         for j in range(len(bloc_L[0])):
-#             grille[y + i][x + j] = bloc_L[i][j]
-#     return grille
+#     # Ajoute le client à la liste des clients connectés et incrémente le nombre de joueurs
+#     clients.add(websocket)
+#     player_count += 1
 
-# def afficheGrille () : 
-#     for ligne in grille_tetris:
-#         ligne_formattee = ["#" if cellule == 1 else "." for cellule in ligne]
-#         print("".join(ligne_formattee))
+#     # Envoie un numéro de joueur à chaque nouveau client
+#     if player_number <= required_players:
+#         await websocket.send(json.dumps({"action": "givePlayerNumber", "number": player_number}))
+#         player_number += 1
 
-# def convert(x):
-#     if x=='A':return 10
-#     elif x=='B':return 11
-#     elif x=='C':return 12
-#     elif x=='D':return 13
-#     elif x=='E':return 14
-#     elif x=='F':return 15
-#     elif x=='G':return 16
-#     elif x=='H':return 17
-#     elif x=='I':return 18
-#     elif x=='J':return 19
-#     else : return int(x)
+#     try:
+#         async for message in websocket:
+#             data = json.loads(message)
 
-# s='*'
-# piece='line'
-# async def handle_client(reader, writer):
-#     round=1
-#     while True:
-#         data = await reader.read(1024)
-#         if not data:
-#             break
-#         matrix_json = data.decode()
-#         matrix = json.loads(matrix_json)
-#         print("Matrice reçue du client :")
-#         for row in matrix:
-#             print(row)
-#         s=input("Appuyez sur la touche entrée ou 's' pour sortir... ")
-#         # Modifier la matrice (ajout d'une valeur)
-#         x=convert(s[0:1])
-#         y=convert(s[2:3])
-#         matrix=placerPiece(x,y,piece,matrix)
-#         #matrix[1][1] +=round
-#         matrix_json = json.dumps(matrix)
-#         writer.write(matrix_json.encode())
-#         await writer.drain()
-#         print("Matrice modifiée renvoyée au client")
-#         for row in matrix:
-#             print(row)
-#         round +=1
-#     writer.close()
+#             # Vérifie l'action "setPlayers" pour définir le nombre de joueurs requis
+#             if data.get("action") == "setPlayers" and "players" in data:
+#                 required_players = data["players"]
 
-# async def main():
-#     server = await asyncio.start_server(
-#         handle_client, '127.0.0.1', 8888)
+#                 # Vérifie si le nombre de joueurs requis est atteint pour démarrer le jeu
+#                 if not start_game_sent and player_count >= required_players:
+#                     # Choix aléatoire du joueur qui commence
+#                     starting_player = random.randint(1, required_players)
 
-#     addr = server.sockets[0].getsockname()
-#     print(f'Serveur en attente de connexions sur {addr}')
+#                     # Crée un message combiné pour "startGame" et "currentPlayer" et l'envoie à tous les clients
+#                     start_game_message = {
+#                         "action": "startGame",
+#                         "currentPlayer": starting_player
+#                     }
+#                     await asyncio.wait([client.send(json.dumps(start_game_message)) for client in clients])
+#                     start_game_sent = True
 
-#     async with server:
-#         await server.serve_forever()
+#             # Relaie tous les autres messages à tous les clients connectés
+#             await asyncio.wait([client.send(message) for client in clients if client != websocket])
+#     finally:
+#         # Décrémente le nombre de joueurs lorsque quelqu'un se déconnecte et le retire de la liste des clients
+#         player_count -= 1
+#         clients.remove(websocket)
 
-# asyncio.run(main())
+# async def start_server(ip, port):
+#     global clients, player_count, required_players, start_game_sent, player_number, starting_player
+
+#     # Initialisation des variables pour le serveur
+#     required_players = 0
+#     player_count = 0
+#     clients = set()
+#     start_game_sent = False
+#     player_number = 1
+#     starting_player = 0
+
+#     # Démarre le serveur WebSocket et attend les connexions
+#     async with websockets.serve(connection_handler, ip, port):
+#         await asyncio.Future()
+
+# # Exécute le serveur avec l'adresse IP et le port spécifiés
+# asyncio.run(start_server("172.20.10.6", 4242))
+import asyncio
+import websockets
+import sys
+
+async def server(ip, port):
+    async with websockets.serve(handler, ip, port):
+        print(f"Serveur démarré à l'adresse {ip} sur le port {port}")
+        await asyncio.Future()  # Maintien du serveur ouvert
+
+async def handler(websocket, path):
+    print("Nouvelle connexion établie.")
+
+    try:
+        async for message in websocket:
+            # Traiter les messages reçus ici
+            pass
+    finally:
+        print("Connexion terminée.")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python Serveur.py [adresse IP] [port]")
+    else:
+        ip = sys.argv[1]
+        port = int(sys.argv[2])
+        asyncio.run(server(ip, port))
