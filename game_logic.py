@@ -1,45 +1,86 @@
-import random
+import socket
+import subprocess
 import asyncio
+import websockets
 
-class SimpleGame:
-    def __init__(self):
-        self.target_number = random.randint(1, 100)
-        self.game_over = False
+async def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except OSError:
+        return None
 
-    async def guess_number(self, player_name, number):
-        if self.game_over:
-            return f"Game is already over!"
+def show_menu():
+    print("1. Host une partie")
+    print("2. Rejoindre une partie")
+    print("0. Quitter")
+    
+    try:
+        choice = int(input("Entrez votre choix : "))
+        return choice
+    except ValueError:
+        return -1
 
-        print(f"{player_name} guesses {number}")
-        if number < self.target_number:
-            return "The number is higher!"
-        elif number > self.target_number:
-            return "The number is lower!"
+def start_server(local_ip):
+    subprocess.Popen(['python', 'Server.py', local_ip, '4242'], creationflags=subprocess.CREATE_NEW_CONSOLE)
+
+async def connect_to_server(local_ip):
+    while True:
+        uri = f"ws://{local_ip}:4242"
+        async with websockets.connect(uri) as websocket:
+            print(f"Connecté au serveur {local_ip}:4242 !")
+
+            while True:
+                # Attendre la réponse du serveur
+                response = await websocket.recv()
+                print(f"Nouvelle information du serveur : {response}")
+
+                # Proposer de démarrer la partie ou effectuer d'autres actions en fonction de la réponse
+                # Demander à l'utilisateur s'il veut démarrer la partie
+                start_game = input("Voulez-vous démarrer la partie ? (o/n): ")
+                if start_game.lower() == "o":
+                    await websocket.send("Démarrer la partie")
+
+                # Vous pouvez ajouter ici d'autres actions en fonction des réponses du serveur
+
+async def join_game():
+    ip = input("Entrez l'adresse IP du serveur : ")
+    port = input("Entrez le port du serveur : ")
+
+    uri = f"ws://{ip}:{port}"
+    async with websockets.connect(uri) as websocket:
+        print(f"Connecté au serveur {ip}:{port} !")
+
+        while True:
+            # Attendre la réponse du serveur
+            response = await websocket.recv()
+            print(f"Nouvelle information du serveur : {response}")
+
+
+async def main():
+    while True:
+        choice = show_menu()
+
+        if choice == 0:
+            print("Au revoir !")
+            break
+        elif choice == 1:
+            local_ip = await get_local_ip()
+            if local_ip:
+                print(f"Adresse IP locale : {local_ip}")
+                start_server(local_ip)
+                input("Appuyez sur \"Entré\" pour vous connécter")
+                await connect_to_server(local_ip)
+            else:
+                print("Impossible de récupérer l'adresse IP.")
+        elif choice == 2:
+            # Ajouter le code pour rejoindre une partie ici
+            pass
         else:
-            self.game_over = True
-            return f"Congratulations, {player_name}! You have guessed the number."
+            print("Choix invalide. Veuillez réessayer.")
 
-    async def reset_game(self):
-        self.target_number = random.randint(1, 100)
-        self.game_over = False
-        print("Game has been reset.")
-
-# Cette fonction hypothétique représente la boucle de jeu principale, où la logique du jeu est gérée.
-async def main_game():
-    game = SimpleGame()
-    
-    player_name = "Player1"  # Ce serait dynamique dans un vrai jeu, peut-être déterminé par des entrées de l'utilisateur.
-    
-    # Supposons que le joueur continue à deviner avec des entrées simulées jusqu'à ce qu'il gagne.
-    while not game.game_over:
-        player_guess = random.randint(1, 100)  # Dans un vrai jeu, vous obtiendriez cela à partir de l'entrée du joueur.
-        result = await game.guess_number(player_name, player_guess)
-        print(result)
-
-        await asyncio.sleep(1)  # Faire une pause pour simuler le temps de réflexion du joueur.
-
-    await game.reset_game()  # Réinitialisez le jeu, prêt pour la prochaine partie.
-
-# Pour tester directement ce fichier, sinon, il sera appelé par client.py
 if __name__ == "__main__":
-    asyncio.run(main_game())
+    asyncio.run(main())
