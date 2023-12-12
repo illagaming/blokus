@@ -4,6 +4,13 @@ import websockets
 import asyncio
 import json
 
+
+
+###Va oir les fichiers "game_logic" et "server", c'est ceux a modifier
+
+
+keeper=0
+
 # Importez la bibliothèque appropriée en fonction du système d'exploitation
 if sys.platform.startswith('linux'):
     try:
@@ -242,7 +249,7 @@ class BlukusGame:
             for j in range(len(piece[i])):
                 if piece[i][j] == "#":
                     self.board[i + x][j + y] = f"{self.player_colors[self.current_player]}#\033[0m" 
-                    asyncio.create_task(self.send_update_to_all_clients())
+                    #asyncio.create_task(self.send_update_to_all_clients())
         
         # Ajoutez la pièce à la liste des pièces utilisées pour ce joueur
         self.players[self.current_player].append(self.current_piece_key)
@@ -383,7 +390,7 @@ class BlukusGame:
 
             if len(self.clients) == self.number_of_players - 1:
                 print("Tous les joueurs sont connectés. Le jeu peut commencer.")                
-                await self.main()  # Démarrer le jeu
+                await self.main(websocket)  # Démarrer le jeu
 
             try:
                 async for message in websocket:
@@ -415,14 +422,41 @@ class BlukusGame:
                 if data['action'] == 'update':
                     self.current_player=data["current_player"]
                     self.display_board(data["blokus_pieces"], data["x"], data["y"])
+                    
                     print("Je suis le joueur ",self.player_number )
+                    
                 if data['action'] == 'save':
                     self.current_player=data["player"]
                     self.current_piece_key=data["piece"]
                     self.place_piece(data["current_piece"], data["current_x"], data["current_y"])
                     self.current_player=self.player_number
-            if self.current_player == self.player_number:
-                    print("A moi")
+                    self.current_piece_key = self.choose_piece() 
+                    while self.current_player == self.player_number:
+                        self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
+                        update = json.dumps({'action': 'update', 'board': self.board, 'current_player':self.current_player,'blokus_pieces':self.blokus_pieces[self.current_piece_key][self.rotation_idx], 'x':self.x, 'y':self.y})
+                        await websocket.send(update)
+                        key_pressed = self.get_key()  # Attente d'une entrée clavier
+                        if key_pressed == 'k':  # Si 'k' est pressé, fin du jeu
+                            print("Fin du jeu...")
+                            break
+                        # Modification du plateau en fonction de la touche pressée
+                        self.x, self.y, self.rotation_idx = self.modify_board(
+                            self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
+                        # Affichage du plateau avec la pièce déplacée
+                        if key_pressed in ('\r', '\n'):  # Si Entrée est pressée
+                            current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
+                            current_x = self.x
+                            current_y = self.y
+
+                            if self.can_place_piece(current_piece, current_x, current_y):  # Vérification si la pièce peut être placée
+                                self.place_piece(current_piece, current_x, current_y)  # Placement de la pièce
+                                self.update_score()  # Mise à jour du score
+                                # Envoi de l'information de placement de la pièce aux clients
+                            
+                                # Passage au joueur suivant
+                                self.current_player = (self.current_player % self.number_of_players) + 1
+                                self.rotation_idx = 0
+                                self.x, self.y = 1, 1
 
     async def send_update_to_all_clients(self):
         update = json.dumps({'action': 'update', 'board': self.board, 'current_player': self.current_player})
@@ -485,10 +519,27 @@ class BlukusGame:
     #                                                                                                 #
     #                                                                                                 #  
     ###################################################################################################
-    async def main(self):
+    async def main(self,websocket):
+        global keeper
         self.initialize_game()
         all_players_blocked = False
         while not all_players_blocked:
+            if self.current_player != self.player_number:
+                print("test")
+                async for message in websocket:
+                    data = json.loads(message)
+                    print(data)
+                    if data['action'] == 'assign_number':
+                        self.player_number=data["number"]
+                        print("Je suis le joueur ",self.player_number )
+                    if data['action'] == 'update':
+                        self.display_board(data["blokus_pieces"], data["x"], data["y"])
+                        print("Je suis le joueur ",self.player_number )
+                    if data['action'] == 'save':
+                        self.current_player=data["player"]
+                        self.current_piece_key=data["piece"]
+                        self.place_piece(data["current_piece"], data["current_x"], data["current_y"])
+                        self.current_player=self.player_number 
             # A faire: le client envoie s'il peut jouer, sinon passe
             # if not self.player_can_play(self.current_player):
             #     print(f"Le joueur {self.current_player} est bloqué et passe son tour.")
@@ -500,16 +551,16 @@ class BlukusGame:
 
             #     self.current_player = (self.current_player % self.number_of_players) + 1
             
-            if self.is_host:  # Vérification si l'instance actuelle est celle de l'hôte
+              # Vérification si l'instance actuelle est celle de l'hôte
                 # Création d'une mise à jour de l'état du jeu à envoyer aux clients
-                update = json.dumps({'action': 'update', 'board': self.board, 'current_player':self.current_player,'blokus_pieces':self.blokus_pieces[self.current_piece_key][self.rotation_idx], 'x':self.x, 'y':self.y})
                 # Envoi de la mise à jour à tous les clients
-                await asyncio.gather(*(client.send(update) for client in self.clients))
-                # Affichage du plateau de jeu
-                self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y) 
+                
 
             # Cette vérification semble redondante car elle est identique à celle ci-dessus.
             if self.current_player == self.player_number:
+                self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
+                update = json.dumps({'action': 'update', 'board': self.board, 'current_player':self.current_player,'blokus_pieces':self.blokus_pieces[self.current_piece_key][self.rotation_idx], 'x':self.x, 'y':self.y})
+                await asyncio.gather(*(client.send(update) for client in self.clients))
                 print(f"Tour du joueur {self.current_player}.")  # Affichage du tour du joueur actuel
                 key_pressed = self.get_key()  # Attente d'une entrée clavier
                 if key_pressed == 'k':  # Si 'k' est pressé, fin du jeu
@@ -520,8 +571,7 @@ class BlukusGame:
                 self.x, self.y, self.rotation_idx = self.modify_board(
                     self.current_piece_key, self.x, self.y, key_pressed, self.rotation_idx)
                 # Affichage du plateau avec la pièce déplacée
-                self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y)
-
+                self.display_board(self.blokus_pieces[self.current_piece_key][self.rotation_idx], self.x, self.y) 
                 if key_pressed in ('\r', '\n'):  # Si Entrée est pressée
                     current_piece = self.blokus_pieces[self.current_piece_key][self.rotation_idx]
                     current_x = self.x
@@ -543,8 +593,10 @@ class BlukusGame:
                             self.is_host=False
 
             else:  # Si ce n'est pas le tour de l'hôte
-                print("En attente du tour des autres joueurs...")
-                await asyncio.sleep(0.1)  # Petite pause pour éviter la surcharge CPU
+                if keeper==0:
+                    print("En attente du tour des autres joueurs...")
+                    keeper=1
+                #await asyncio.sleep(0.1)  # Petite pause pour éviter la surcharge CPU
 
         # Calcul des scores finaux
         self.calculate_final_scores()
@@ -561,11 +613,11 @@ class BlukusGame:
             if user_choice == 1:
                 # ip = input("Entrez l'adresse IP pour l'hôte : ")
                 # port = input("Entrez le port : ")
-                asyncio.run(self.host_game("172.20.10.6", "4242"))
+                asyncio.run(self.host_game("192.168.184.151", "4242"))
             elif user_choice == 2:
                 # ip = input("Entrez l'adresse IP de l'hôte : ")
                 # port = input("Entrez le port : ")
-                asyncio.run(self.connect_to_game("172.20.10.6", "4242"))
+                asyncio.run(self.connect_to_game("192.168.184.151", "4242"))
             elif user_choice == 3:
                 print("Au revoir!")
                 break

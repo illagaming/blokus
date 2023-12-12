@@ -3,6 +3,12 @@ import subprocess
 import asyncio
 import websockets
 
+
+#A faire:
+#Toute la logique du jeu dans une fonction (appeler une pièce, tourner, envoyer les modifs...)
+#L'host doit pouvoir lancer quand il veut et voir en temps réel le nombre de personnes connéctées.
+
+
 async def get_local_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

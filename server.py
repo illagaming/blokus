@@ -1,3 +1,10 @@
+#A faire:
+#Transmettre les infos des clients
+#Une serte de "mix" du programme actuel et de celui commenté
+
+
+
+
 # import asyncio
 # import websockets
 # import json
