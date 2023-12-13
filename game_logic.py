@@ -6,9 +6,6 @@ import json
 import os
 import sys
 
-#A faire:
-#Toute la logique du jeu dans une fonction (appeler une pièce, tourner, envoyer les modifs...)
-#L'host doit pouvoir lancer quand il veut et voir en temps réel le nombre de personnes connéctées.
 # Importez la bibliothèque appropriée en fonction du système d'exploitation
 if sys.platform.startswith('linux'):
     try:
@@ -204,9 +201,9 @@ class BlukusGame:
         return tab
 
     def display_board(self, piece, x, y):
-        #os.system("cls" if os.name == 'nt' else 'clear')
+        os.system("cls" if os.name == 'nt' else 'clear')
         display_tab = [row.copy() for row in self.board]
-        color_code = self.player_colors[1]
+        color_code = self.player_colors[self.current_player]
         piece_char = color_code + '#\033[0m'
 
         # Débug placement pièces
@@ -249,6 +246,7 @@ class BlukusGame:
    
     def can_place_piece(self, piece, x, y):
         """"Vérifie si l'on peut placer la pièce sur le plateau"""
+    
         if self.is_corner(piece, x, y) and self.is_first_turn() == True:
             for i in range(len(piece)):
                 for j in range(len(piece[i])):
@@ -388,18 +386,13 @@ class BlukusGame:
 
     def initialize_game(self):
         """Initialise les paramètres et l'état du jeu avant de commencer une nouvelle partie"""
-        #os.system("cls" if os.name == 'nt' else 'clear')    
+        os.system("cls" if os.name == 'nt' else 'clear')      
         
         self.current_piece_key = self.choose_piece()
         self.rotation_idx = 0
         self.x, self.y = 1, 1
     
-#  __  __       _      
-# |  \/  |     (_)      
-# | \  / | __ _ _ _ __  
-# | |\/| |/ _` | | '_ \
-# | |  | | (_| | | | | |
-# |_|  |_|\__,_|_|_| |_|
+
 
 
 
@@ -428,30 +421,44 @@ def show_menu():
 def start_server(local_ip):
     subprocess.Popen(['python', 'Server.py', local_ip, '4242'], creationflags=subprocess.CREATE_NEW_CONSOLE)
 
+
+
+#  __  __       _      
+# |  \/  |     (_)      
+# | \  / | __ _ _ _ __  
+# | |\/| |/ _` | | '_ \
+# | |  | | (_| | | | | |
+# |_|  |_|\__,_|_|_| |_|
+
 async def gameplay(websocket,turn,game):
+    game.current_player=turn
     pieceChoosed=False
     while True:
         if(turn==my_number):
             if(pieceChoosed==False):
                 game.initialize_game()
-                pieceChoosed==True
+                pieceChoosed=True
             if not game.player_can_play(game.current_player):
                 print(f"Le joueur {game.current_player} est bloqué et passe son tour.")
 
-                # Vérifier si tous les joueurs sont bloqués
+                    # Vérifier si tous les joueurs sont bloqués
                 all_players_blocked = all(
                     not game.player_can_play(player) for player in range(1, game.number_of_players + 1)
-                )
+                 )
 
                 if all_players_blocked:
                     print("Tous les joueurs sont bloqués. Fin du jeu.")
                     break
 
-                # Passer au joueur suivant
+                  # Passer au joueur suivant
                 game.current_player = (game.current_player % game.number_of_players) + 1
+                await websocket.send(json.dumps({"action":"skip","turn":turn,"current_piece_key":game.current_piece_key}))
+                turn=game.current_player
                 continue
 
             # Afficher le plateau avec la pièce actuelle
+            
+            
             game.display_board(game.blokus_pieces[game.current_piece_key][game.rotation_idx], game.x, game.y)
             await websocket.send(json.dumps({"action":"display","blockus_pieces":game.blokus_pieces[game.current_piece_key][game.rotation_idx],"x":game.x,"y":game.y}))
             # Instructions pour le joueur actuel
@@ -478,24 +485,41 @@ async def gameplay(websocket,turn,game):
 
                     # Passer au joueur suivant
                     game.current_player = (game.current_player % game.number_of_players) + 1
-        
                     game.rotation_idx = 0  # Réinitialiser la rotation pour la nouvelle pièce
                     game.x, game.y = 1, 1  # Réinitialiser les positions
+                    await websocket.send(json.dumps({"action":"save","current_piece":current_piece,"x":current_x,"y":current_y,"turn":turn,"current_piece_key":game.current_piece_key}))
+                    turn=game.current_player
                 else:
                     print("Action impossible. Vous ne pouvez pas placer la pièce ici.")
             else:
                 # Traitement des autres actions (déplacement, rotation)
                 game.x, game.y, game.rotation_idx = game.modify_board(
                     game.current_piece_key, game.x, game.y, key_pressed, game.rotation_idx)
+                await asyncio.sleep(0.01)
         else:
-            pieceChoosed==False
-            async for message in websocket:
-                data = json.loads(message)
-                if(data["action"]=="display"):
-                    game.display_board(data['blockus_pieces'],data["x"], data["y"])
-           
+            pieceChoosed = True
+            while pieceChoosed:
+                async for message in websocket:
+                    data = json.loads(message)
+                    if data["action"] == "display":
+                        game.display_board(data['blockus_pieces'], data["x"], data["y"])
+                        await websocket.send(json.dumps({"action": "test"}))
+                    
+                    if data["action"] == "skip":
+                        turn = (data["turn"] % game.number_of_players) + 1
+                        game.current_player = turn
+                        pieceChoosed = False
+                        break
 
-async def connect_to_server(local_ip):
+                    if data["action"] == "save":
+                        game.current_piece_key = data["current_piece_key"]
+                        game.place_piece(data["current_piece"], data["x"], data["y"])
+                        turn = (data["turn"] % game.number_of_players) + 1
+                        game.current_player = turn
+                        pieceChoosed = False
+                        break
+
+async def connect_to_server(local_ip,game):
     global my_number
     while True:
         uri = f"ws://{local_ip}:4242"
@@ -506,12 +530,14 @@ async def connect_to_server(local_ip):
                 print(data)
                 if(data["action"]=="yourNumber"):
                     my_number=data["nb"]
+
                 if(data["action"]=="NewConnexion"):
                     print("Nouvelle connexion, nombre de joueurs connecté: ",data["con"])
                     start_game = input("Voulez-vous démarrer la partie ? (o/n): ")
                     if start_game.lower() == "o":
                         await websocket.send(json.dumps({"action":"startGame"}))
                 if(data["action"]=="startGame"):
+                    game.number_of_players=data["players"]
                     await gameplay(websocket,data["currentPlayer"],game)
                 # Vous pouvez ajouter ici d'autres actions en fonction des réponses du serveur
 
@@ -527,12 +553,13 @@ async def join_game(game):
             print("En attente de l'host")
             async for message in websocket:
                 data = json.loads(message)
-                data = json.loads(message)
                 if(data["action"]=="yourNumber"):
                     my_number=data["nb"]
                 if(data["action"]=="NewConnexion"):
                     print("Nouvelle connexion, nombre de joueurs connecté: ",data["con"])
                 if(data["action"]=="startGame"):
+                    print(data["players"])
+                    game.number_of_players=data["players"]
                     await gameplay(websocket,data["currentPlayer"],game)
                     print("bbbb")
 
@@ -548,7 +575,7 @@ async def main(game):
             if local_ip:
                 print(f"Adresse IP locale : {local_ip}")
                 start_server(local_ip)
-                await connect_to_server(local_ip)
+                await connect_to_server(local_ip,game)
             else:
                 print("Impossible de récupérer l'adresse IP.")
         elif choice == 2:
