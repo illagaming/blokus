@@ -9,9 +9,11 @@ Pour exécuter ce jeu, assurez-vous d'avoir Python installé sur votre machine. 
 
 ### Dépendances
 
-Pour installer readchar sous Linux, utilisez la commande : `pip install readchar`.
-- Sous Linux, assurez-vous d'avoir la bibliothèque `readchar` installée.
-- Sous Windows, aucune dépendance supplémentaire n'est requise.
+Pour les dépendances lancer l'installeur :
+
+```python
+python Installer.py
+```
 
 ## Fonctionnalités
 
@@ -25,8 +27,16 @@ Pour installer readchar sous Linux, utilisez la commande : `pip install readchar
 
 Pour démarrer le jeu, exécutez le script principal. Le menu s'affichera vous permettant de commencer à jouer, de lancer en mode debug ou de quitter.
 
+Pour jouer sur un seul pc :
+
 ```powershell
-python blukus.py
+python blukus_pc.py
+```
+
+Pour jouer en réseau :
+
+```powershell
+python game_logic.py
 ```
 
 ### Commandes du Jeu
