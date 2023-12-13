@@ -1,6 +1,6 @@
 import subprocess
 import sys
-if sys.platform.startswith('linux'):
+if sys.platform.startswith('linux') or sys.platform.startswith('ubuntu') :
     commande = "sudo apt-get update && sudo apt-get install websockets && sudo apt-get install readchar"
     try:
         # Exécute la commande apt-get pour installer websockets
