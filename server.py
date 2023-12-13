@@ -1,109 +1,91 @@
 import asyncio
+import websockets
 import json
+import random
+import sys
 
-async def handle_client(reader, writer):
-    data = await reader.read(100)
-    message = json.loads(data.decode())
+# Partie de gestion des connexions clients
+
+async def handler(websocket, path):
+    global clients, player_count, required_players, start_game_sent, player_number, starting_player
     
-    # Gérer les différentes actions du jeu ici, telles que la mise à jour du jeu, etc.
-    # Pour cet exemple, nous renvoyons simplement le message au client.
+    # Nouvelle connexion établie
+    print("Nouvelle connexion établie.")
     
-    print(f"Received {message} from client")
-    print("Sending back to client")
+    # Ajout du client à la liste des clients
+    clients.append(websocket)
     
-    new_message = json.dumps({"response": "Received your message!"})
-    writer.write(new_message.encode())
-    await writer.drain()
+    # Incrémentation du nombre de joueurs
+    player_count += 1
+    
+    # Envoi du nombre du joueur au client
+    await websocket.send(json.dumps({"action": "yourNumber", "nb": player_count}))
+    
+    # Envoi à tous les clients du nombre total de connexions actives
+    await clients[0].send(json.dumps({"action": "NewConnexion", "con": player_count}))
+    
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            
+            # Traitement des messages reçus
+            
+            # Vérification de l'action "startGame" pour démarrer le jeu
+            if data.get("action") == "startGame":
+                
+                # Vérifie si le jeu n'a pas déjà été lancé
+                if not start_game_sent:
+                    # Choix aléatoire du joueur qui commence
+                    starting_player = random.randint(1, len(clients))
+                    
+                    # Création du message "startGame" et envoi à tous les clients
+                    start_game_message = {
+                        "action": "startGame",
+                        "currentPlayer": starting_player,
+                        "players": len(clients)
+                    }
+                    print(start_game_message)
+                    
+                    # Envoi du message à tous les clients
+                    await asyncio.gather(*[client.send(json.dumps(start_game_message)) for client in clients])
+                    start_game_sent = True
+            
+            # Relayage de tous les autres messages à tous les clients connectés
+            if data.get("action") == "test":
+                await websocket.send(json.dumps({"action": "test"}))
+            else:
+                await asyncio.gather(*[client.send(message) for client in clients if client != websocket])
 
-    writer.close()
+    finally:
+        print("Connexion terminée.")
+        # Code pour gérer la déconnexion d'un client
+        #player_count -= 1
+        #clients.pop(websocket)
 
-async def main():
-    server = await asyncio.start_server(
-        handle_client, '127.0.0.1', 8888)
+# Partie du serveur
 
-    addr = server.sockets[0].getsockname()
-    print(f'Serving on {addr}')
+async def server(ip, port):
+    global clients, player_count, required_players, start_game_sent, player_number, starting_player
+    
+    # Initialisation des variables pour le serveur
+    required_players = 0
+    player_count = 0
+    clients = []
+    start_game_sent = False
+    player_number = 1
+    starting_player = 0
+    
+    # Création du serveur WebSocket
+    async with websockets.serve(handler, ip, port):
+        print(f"Serveur démarré à l'adresse {ip} sur le port {port}")
+        await asyncio.Future()  # Maintien du serveur ouvert
 
-    async with server:
-        await server.serve_forever()
+# Exécution du serveur
 
-asyncio.run(main())
-
-
-
-# # Serveur
-# # --------
-
-# import asyncio 
-# import json
-
-# grille_tetris = [[0] * 10 for _ in range(20)]
-
-# def placerPiece(posX,posY,pieces,grille):
-#     bloc_L = [
-#     [1, 0, 0],
-#     [1, 1, 1]
-#     ]
-#     x, y = posX, posY
-#     for i in range(len(bloc_L)):
-#         for j in range(len(bloc_L[0])):
-#             grille[y + i][x + j] = bloc_L[i][j]
-#     return grille
-
-# def afficheGrille () : 
-#     for ligne in grille_tetris:
-#         ligne_formattee = ["#" if cellule == 1 else "." for cellule in ligne]
-#         print("".join(ligne_formattee))
-
-# def convert(x):
-#     if x=='A':return 10
-#     elif x=='B':return 11
-#     elif x=='C':return 12
-#     elif x=='D':return 13
-#     elif x=='E':return 14
-#     elif x=='F':return 15
-#     elif x=='G':return 16
-#     elif x=='H':return 17
-#     elif x=='I':return 18
-#     elif x=='J':return 19
-#     else : return int(x)
-
-# s='*'
-# piece='line'
-# async def handle_client(reader, writer):
-#     round=1
-#     while True:
-#         data = await reader.read(1024)
-#         if not data:
-#             break
-#         matrix_json = data.decode()
-#         matrix = json.loads(matrix_json)
-#         print("Matrice reçue du client :")
-#         for row in matrix:
-#             print(row)
-#         s=input("Appuyez sur la touche entrée ou 's' pour sortir... ")
-#         # Modifier la matrice (ajout d'une valeur)
-#         x=convert(s[0:1])
-#         y=convert(s[2:3])
-#         matrix=placerPiece(x,y,piece,matrix)
-#         #matrix[1][1] +=round
-#         matrix_json = json.dumps(matrix)
-#         writer.write(matrix_json.encode())
-#         await writer.drain()
-#         print("Matrice modifiée renvoyée au client")
-#         for row in matrix:
-#             print(row)
-#         round +=1
-#     writer.close()
-
-# async def main():
-#     server = await asyncio.start_server(
-#         handle_client, '127.0.0.1', 8888)
-
-#     addr = server.sockets[0].getsockname()
-#     print(f'Serveur en attente de connexions sur {addr}')
-
-#     async with server:
-#         await server.serve_forever()
-
-# asyncio.run(main())
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python Serveur.py [adresse IP] [port]")
+    else:
+        ip = sys.argv[1]
+        port = int(sys.argv[2])
+        asyncio.run(server(ip, port))
