@@ -47,19 +47,20 @@ async def handler(websocket, path):
                     print(start_game_message)
                     
                     # Envoi du message à tous les clients
-                    await asyncio.wait([client.send(json.dumps(start_game_message)) for client in clients])
+                    await asyncio.gather(*[client.send(json.dumps(start_game_message)) for client in clients])
                     start_game_sent = True
             
             # Relayage de tous les autres messages à tous les clients connectés
             if data.get("action") == "test":
                 await websocket.send(json.dumps({"action": "test"}))
             else:
-                await asyncio.wait([client.send(message) for client in clients if client != websocket])
+                await asyncio.gather(*[client.send(message) for client in clients if client != websocket])
+
     finally:
         print("Connexion terminée.")
         # Code pour gérer la déconnexion d'un client
-        player_count -= 1
-        clients.pop(websocket)
+        #player_count -= 1
+        #clients.pop(websocket)
 
 # Partie du serveur
 
